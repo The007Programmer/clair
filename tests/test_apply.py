@@ -77,6 +77,62 @@ def test_apply_symlink_replaces_wrong_link(tmp_path):
     assert os.path.realpath(target) == os.path.realpath(src)
 
 
+def test_apply_symlink_falls_back_to_copy_when_symlink_denied(tmp_path, monkeypatch):
+    # On Windows without Developer Mode/admin, os.symlink raises OSError. apply
+    # must degrade to a real copy so the file still lands.
+    src = str(tmp_path / "src.sh")
+    with open(src, "w") as fh:
+        fh.write("body")
+    target = str(tmp_path / "out" / "link.sh")
+
+    def deny(*a, **k):
+        raise OSError("symlinks not permitted")
+
+    monkeypatch.setattr(apply.os, "symlink", deny)
+    result = apply.apply_symlink(src, target)
+    assert result == "copied"
+    assert not os.path.islink(target)
+    assert os.path.isfile(target)
+    assert _read(target) == "body"
+
+
+def test_apply_symlink_copy_is_idempotent_no_backup_churn(tmp_path, monkeypatch):
+    # Re-applying a copied file whose content already matches the source is a
+    # no-op ("ok") and must NOT spew a fresh *.clair.bak every run.
+    src = str(tmp_path / "src.sh")
+    with open(src, "w") as fh:
+        fh.write("body")
+    target = str(tmp_path / "link.sh")
+
+    def deny(*a, **k):
+        raise OSError("symlinks not permitted")
+
+    monkeypatch.setattr(apply.os, "symlink", deny)
+    assert apply.apply_symlink(src, target) == "copied"
+    result = apply.apply_symlink(src, target)
+    assert result == "ok"
+    assert not os.path.exists(target + config.backup_suffix())
+
+
+def test_apply_symlink_copy_refreshes_when_source_changed(tmp_path, monkeypatch):
+    # A stale copy (differs from source) is backed up and refreshed on re-apply.
+    src = str(tmp_path / "src.sh")
+    with open(src, "w") as fh:
+        fh.write("v2")
+    target = str(tmp_path / "link.sh")
+    with open(target, "w") as fh:
+        fh.write("v1-stale")
+
+    def deny(*a, **k):
+        raise OSError("symlinks not permitted")
+
+    monkeypatch.setattr(apply.os, "symlink", deny)
+    result = apply.apply_symlink(src, target)
+    assert result == "copied"
+    assert _read(target) == "v2"
+    assert _read(target + config.backup_suffix()) == "v1-stale"
+
+
 def test_apply_symlink_repoints_to_stable_path_when_literal_differs(tmp_path):
     # Homebrew case: an existing link points at the versioned Cellar keg while the
     # new source is the stable `opt` prefix. Both resolve to the same file today,

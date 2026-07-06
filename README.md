@@ -3,9 +3,9 @@
 Your Claude Code environment as code. `clair` is a dependency-free Python tool that
 reconstructs a complete, non-vanilla Claude Code setup — settings, hooks, statusline, cost
 scripts, commands, skills, plugin/marketplace choices, and a vendored mboard coordinator —
-from a single repository, on a fresh macOS or Ubuntu machine. Personal, company, and secret
-content never enters the public repo; it lives in an optional private overlay you point the
-tool at.
+from a single repository, on a fresh macOS, Ubuntu, or Windows machine. Personal, company,
+and secret content never enters the public repo; it lives in an optional private overlay you
+point the tool at.
 
 ## Install
 
@@ -32,15 +32,29 @@ it needs a git checkout, so use the from-source path below for that workflow.
 
 ### From source (for development)
 
-Clone the repo and run the bootstrap script, which ensures `git`, `python3`, and `jq` are
-present (via `brew`/`apt`) and then runs `python3 -m clair apply`:
+Clone the repo and run the bootstrap, which detects the OS, best-effort ensures `git`/`jq`,
+and then runs `python3 -m clair apply`:
 
 ```sh
 git clone https://github.com/The007Programmer/clair
 cd clair
 cp local.env.example local.env   # edit per-machine values (optional)
-./install.sh
+./install.sh                     # macOS / Linux (bash)
 ```
+
+**Windows (or any machine without bash):** use the shell-free Python bootstrap instead of
+`install.sh` — it does the same job with no bash, brew, apt, or `/dev/null`:
+
+```powershell
+python bootstrap.py
+```
+
+`bootstrap.py` also works on macOS/Linux, so it's the portable entry point if you prefer
+Python to shell. On Windows, `clair` auto-installs nothing (there's no committed package
+manager); install `git`/`jq` yourself if you want overlays / jq-based hooks. Managed files
+are normally symlinked, but where the OS forbids symlinks (Windows without Developer Mode or
+admin) `clair` transparently falls back to **copying** the files — re-run `clair apply` (or
+`clair push`) to re-sync after the repo changes, since copies don't live-track the source.
 
 For a step-by-step, verifiable walkthrough, see [SETUP.md](./SETUP.md). For how Claude Code
 itself reconstructs the environment, see [CLAUDE.md](./CLAUDE.md).

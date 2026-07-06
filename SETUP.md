@@ -1,9 +1,13 @@
 # SETUP.md — reconstruction playbook
 
 An ordered, verifiable, Claude-executable playbook to reconstruct this Claude Code
-environment on a fresh machine (macOS or Ubuntu). Run each step, confirm the expected
-result, then continue. Every command is run from the repository root unless noted. All
-paths use `$HOME`/`~`; there are no machine-specific absolute paths to edit.
+environment on a fresh machine (macOS, Ubuntu, or Windows). Run each step, confirm the
+expected result, then continue. Every command is run from the repository root unless noted.
+All paths use `$HOME`/`~`; there are no machine-specific absolute paths to edit.
+
+> **Windows:** `install.sh` needs bash and is not used. Everywhere this playbook says
+> `./install.sh`, run `python bootstrap.py` instead; the `python3 -m clair apply` commands
+> work unchanged. See the Windows note under Step 2.
 
 ## 0. Prerequisites
 
@@ -17,7 +21,9 @@ paths use `$HOME`/`~`; there are no machine-specific absolute paths to edit.
   install` is required.
 
 - `git` and `jq` will be installed for you by Step 2 if missing (`brew` on macOS,
-  `apt-get` on Ubuntu). You can pre-check:
+  `apt-get` on Ubuntu). On **Windows** nothing is auto-installed — install `git`/`jq`
+  yourself if you want overlays / jq-based hooks (the clair core needs neither). You can
+  pre-check:
 
   ```sh
   command -v git jq
@@ -53,12 +59,18 @@ expanded — `$HOME` resolved to your home directory.
 
 ## 2. Run the install
 
-Two equivalent options:
+Three equivalent options:
 
-- **Bootstrap script** (ensures `git`/`python3`/`jq`, then applies):
+- **Bootstrap script** — macOS/Linux; ensures `git`/`python3`/`jq`, then applies:
 
   ```sh
   ./install.sh
+  ```
+
+- **Python bootstrap** — cross-platform, no shell required (this is the Windows path):
+
+  ```sh
+  python bootstrap.py
   ```
 
 - **Direct, explicit** (use when deps are already present, or to see each phase):
@@ -66,6 +78,10 @@ Two equivalent options:
   ```sh
   python3 -m clair apply
   ```
+
+On Windows, managed files are symlinked when the OS permits it (Developer Mode or an admin
+shell) and otherwise **copied** — either way `apply` succeeds. With copies, re-run `clair
+apply` after pulling repo changes to re-sync, since a copy does not live-track its source.
 
 Expected: an apply report printed to stdout listing the detected OS, dependency
 results, base items applied, overlay items applied (empty if no overlay), plugin results,

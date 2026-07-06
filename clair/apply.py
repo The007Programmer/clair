@@ -47,10 +47,43 @@ def apply_symlink(src_abs, target):
             return "ok"
         os.remove(target)
     elif os.path.exists(target):
+        # A prior copy-fallback (Windows / a filesystem that forbids symlinks)
+        # leaves a REAL file here, not a link. If it already matches the source,
+        # re-applying is a no-op — do not churn a fresh *.clair.bak every run.
+        if _same_file(src_abs, target):
+            return "ok"
         shutil.copyfile(target, target + config.backup_suffix())
         os.remove(target)
-    os.symlink(src_abs, target)
-    return "linked"
+    try:
+        os.symlink(src_abs, target)
+        return "linked"
+    except OSError:
+        # Symlinks are unavailable (e.g. Windows without Developer Mode/admin).
+        # Fall back to a real copy — drift detection and uninstall already treat
+        # a real file at a symlink target correctly.
+        _copy_path(src_abs, target)
+        return "copied"
+
+
+def _same_file(a, b):
+    # type: (str, str) -> bool
+    """True iff both are regular files with identical bytes. A directory never
+    matches (a symlinked-dir install has no single-file body to compare)."""
+    if os.path.isdir(a) or os.path.isdir(b):
+        return False
+    try:
+        with open(a, "rb") as fa, open(b, "rb") as fb:
+            return fa.read() == fb.read()
+    except OSError:
+        return False
+
+
+def _copy_path(src_abs, target):
+    # type: (str, str) -> None
+    if os.path.isdir(src_abs):
+        shutil.copytree(src_abs, target)
+    else:
+        shutil.copyfile(src_abs, target)
 
 
 def apply_template(src_tmpl_path, target, vars, vault_enabled):

@@ -15,8 +15,13 @@ def test_detect_os_linux(monkeypatch):
     assert osenv.detect_os() == "linux"
 
 
-def test_detect_os_other_falls_back_to_linux(monkeypatch):
+def test_detect_os_windows(monkeypatch):
     monkeypatch.setattr(osenv.platform, "system", lambda: "Windows")
+    assert osenv.detect_os() == "windows"
+
+
+def test_detect_os_other_falls_back_to_linux(monkeypatch):
+    monkeypatch.setattr(osenv.platform, "system", lambda: "FreeBSD")
     assert osenv.detect_os() == "linux"
 
 
@@ -72,6 +77,20 @@ def test_ensure_deps_installs_missing_linux(monkeypatch, fake_run):
     result = osenv.ensure_deps("linux", ["jq"], run=fake_run)
     assert result == {"jq": "installed"}
     assert fake_run.calls == [["sudo", "apt-get", "install", "-y", "jq"]]
+
+
+def test_ensure_deps_windows_reports_without_install_attempt(monkeypatch, fake_run):
+    # No package manager is committed to on Windows: a missing dep is reported
+    # "missing" and no installer is ever invoked.
+    present = {"git"}
+    monkeypatch.setattr(
+        osenv.shutil,
+        "which",
+        lambda cmd: "C:\\bin\\git.exe" if cmd in present else None,
+    )
+    result = osenv.ensure_deps("windows", ["git", "jq"], run=fake_run)
+    assert result == {"git": "present", "jq": "missing"}
+    assert fake_run.calls == []
 
 
 def test_ensure_deps_marks_missing_on_nonzero_returncode(monkeypatch):

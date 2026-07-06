@@ -9,16 +9,19 @@ JSON or guessing at steps.
 ## How to reconstruct this environment
 
 There are two equivalent paths. Both run the same deterministic logic in the `clair`
-Python tool (no third-party dependencies, system `python3` >= 3.9, macOS or Ubuntu).
+Python tool (no third-party dependencies, system `python3` >= 3.9, macOS / Ubuntu / Windows).
 
 1. **Headless (preferred for a clean machine):**
 
    ```sh
-   ./install.sh
+   ./install.sh        # macOS / Linux (bash)
+   python bootstrap.py # cross-platform, no shell — use this on Windows
    ```
 
-   This ensures `git`, `python3`, and `jq` are present (via `brew`/`apt`), then runs
-   `python3 -m clair apply` from the repo root.
+   `install.sh` ensures `git`, `python3`, and `jq` are present (via `brew`/`apt`), then runs
+   `python3 -m clair apply` from the repo root. `bootstrap.py` is the shell-free equivalent
+   (no bash/brew/apt/`/dev/null`); on Windows it auto-installs nothing and, where the OS
+   forbids symlinks, `apply` transparently copies managed files instead of linking them.
 
 2. **Step by step (preferred when you want to verify each stage):** follow
    [SETUP.md](./SETUP.md). It is an ordered, verifiable playbook: each step has an exact

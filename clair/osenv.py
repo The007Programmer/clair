@@ -11,9 +11,13 @@ from typing import Dict, List
 
 
 def detect_os() -> str:
-    """Return "darwin" or "linux"; anything non-darwin maps to "linux"."""
-    if platform.system() == "Darwin":
+    """Return "darwin", "windows", or "linux" (the catch-all for every other
+    POSIX system)."""
+    system = platform.system()
+    if system == "Darwin":
         return "darwin"
+    if system == "Windows":
+        return "windows"
     return "linux"
 
 
@@ -42,6 +46,12 @@ def ensure_deps(os_name, pkgs, run=subprocess.run):
     for pkg in pkgs:
         if have(pkg):
             status[pkg] = "present"
+            continue
+        if os_name == "windows":
+            # No package manager is committed to on Windows; report honestly and
+            # let the bootstrap tell the user to install it themselves. (git/jq
+            # are optional — the stdlib-only clair core never shells out to them.)
+            status[pkg] = "missing"
             continue
         try:
             completed = run(install_cmd(os_name, pkg))
