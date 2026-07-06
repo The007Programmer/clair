@@ -1,0 +1,246 @@
+# clair
+
+Your Claude Code environment as code. `clair` is a dependency-free Python tool that
+reconstructs a complete, non-vanilla Claude Code setup — settings, hooks, statusline, cost
+scripts, commands, skills, plugin/marketplace choices, and a vendored mboard coordinator —
+from a single repository, on a fresh macOS or Ubuntu machine. Personal, company, and secret
+content never enters the public repo; it lives in an optional private overlay you point the
+tool at.
+
+## Install
+
+### Homebrew (recommended)
+
+The formula lives in this repo, so the tap is added by URL:
+
+```sh
+brew tap The007Programmer/clair https://github.com/The007Programmer/clair
+brew install clair
+clair --version
+```
+
+This installs the bundled payload into Homebrew's `libexec` and a `clair` wrapper that sets
+`CLAIR_ROOT`. Apply it to your `~/.claude` (and re-apply after each `brew upgrade clair`):
+
+```sh
+clair apply               # interactive feature picker, or
+clair apply recommended   # apply a preset headlessly (minimal | recommended | everything)
+```
+
+`clair push` (capturing live edits back into the repo) is disabled in a Homebrew install —
+it needs a git checkout, so use the from-source path below for that workflow.
+
+### From source (for development)
+
+Clone the repo and run the bootstrap script, which ensures `git`, `python3`, and `jq` are
+present (via `brew`/`apt`) and then runs `python3 -m clair apply`:
+
+```sh
+git clone https://github.com/The007Programmer/clair
+cd clair
+cp local.env.example local.env   # edit per-machine values (optional)
+./install.sh
+```
+
+For a step-by-step, verifiable walkthrough, see [SETUP.md](./SETUP.md). For how Claude Code
+itself reconstructs the environment, see [CLAUDE.md](./CLAUDE.md).
+
+## Quick start
+
+`clair apply` runs a fresh-machine bootstrap: it loads per-machine config, ensures OS
+dependencies, applies the base layer (and a private overlay if one is configured), reinstalls
+plugins, installs the mboard, scans for secrets/PII, and prints any re-auth instructions. It
+is idempotent — re-running it converges to the same state.
+
+Run in a terminal with no preset, `clair apply` opens an interactive feature picker before
+applying anything. Features are grouped into screens (Core, Commands, Skills, Plugins,
+Coordination, Hooks, and an Overlay group when an overlay is configured). Use ↑/↓ to move,
+space to toggle, Enter to advance, ←/→ to move between groups, and Esc to go back; Esc on the
+welcome screen cancels. Your selection is saved to `~/.claude/.clair-profile.json`.
+
+**Re-running `clair apply` is how you update** — it reopens the picker pre-ticked from your
+saved selection, so you can add or remove features.
+
+The picker opens on a **preset screen** — pick *Everything*, *Recommended*, or *Minimal* in one
+keystroke, or *Custom* to walk each group. After applying, a summary screen recaps what landed.
+
+```text
+clair apply                  # interactive picker (preset screen, pre-filled on a re-run)
+clair apply recommended      # headless preset: minimal | recommended | everything
+clair apply web-dev          # apply a curated starter template (web-dev|backend|research|the-works)
+clair apply <repo-url>       # adopt someone else's shared setup — a one-command fork
+clair share                  # export your setup to a portable clair.share.json to publish
+clair completions zsh        # print a shell completion script (zsh|bash) to install yourself
+clair mcp list               # browse the curated MCP-server catalog
+clair mcp add github linear  # deep-merge servers into ./.mcp.json (secrets stay ${VAR} refs)
+clair suggest                # detect this project & auto-configure Claude Code for it
+clair score                  # grade your setup 0-100 with upgrade suggestions
+clair card                   # render a shareable SVG card of your setup
+clair gallery                # browse community setups, adopt any with one command
+clair uninstall              # remove managed files, restore backups, drop mboard + profile
+```
+
+Passing a preset (`minimal` | `recommended` | `everything`) applies headlessly with no
+prompts; `apply` also runs headlessly whenever stdin is not a TTY (so `install.sh` never
+blocks), falling back to the saved profile or defaults. `clair uninstall` asks to confirm
+first (or pass `--yes`); it never deletes `settings.json` outright — it restores the
+pre-install backup, or leaves the file for manual review.
+
+## How it works
+
+### Base and overlay layers
+
+The setup is split into two layers so the public repo stays clean and shareable:
+
+- **Base — this repo.** Fully scrubbed: no PII, no company-specifics, no secrets. The base
+  alone yields a complete, generic environment. It is the source of truth for portable
+  customization.
+- **Overlay — a separate private repo or directory.** Same `home/.claude/` mirror structure,
+  holding only personal or company content (your own agents, internal skills, allowlist
+  entries, and so on). It layers on top of the base, adding new files and merging extra
+  `settings`/allowlist entries.
+
+Point clair at your own overlay in `local.env` (both optional):
+
+- `OVERLAY_REPO=<git url>` — a private overlay repo the installer clones and applies; or
+- `OVERLAY_DIR=<path>` — a local overlay directory.
+
+If neither is set, only the base applies and the system is fully functional (just generic).
+`clair apply` always applies **base, then overlay (if present)** using the same machinery.
+
+See [`docs/overlay-example/`](docs/overlay-example/) for the exact overlay layout (its own
+`manifest.json` with `layer="overlay"` items plus a `home/.claude/` mirror).
+
+### Sync model
+
+Each managed item declares a `mode` in `manifest.json`:
+
+- **`symlink`** — OS/path-agnostic hand-authored content (statusline, cost scripts, commands,
+  generic skills). The repo file *is* the live file.
+- **`template`** — files containing `${VAR}` machine values. Copied with substitution and
+  regenerated on `apply`.
+- **`merge`** — Claude-managed JSON (`settings.json`). Deep-merged into the live file
+  (base-managed keys win, live-only keys preserved), so Claude Code can still rewrite it live;
+  reconciled via `push`.
+
+### Secrets and portability
+
+- Credentials never enter git (either layer). A fresh machine re-authenticates with
+  `claude auth login` (or a credential token in the environment). See [SETUP.md](./SETUP.md)
+  Step 7.
+- Cross-platform by construction: `$HOME`/`~` where the shell expands, `${VAR}` templating for
+  the rest, and an OS-aware installer (`brew`/`apt`, BSD/GNU `stat`).
+- Every apply backs up before overwrite (`*.clair.bak`) and is idempotent.
+
+### Scope
+
+Supports macOS and Ubuntu. Does not sync machine state/history, does not store encrypted
+secrets in git (it excludes them and re-auths instead), and does not auto-publish or manage
+the repo's GitHub remote.
+
+## Commands
+
+`clair <verb>` (equivalently `python3 -m clair <verb>` from a checkout; no third-party
+dependencies). The surface is twelve verbs — `apply`, `status`, `new`, `push`, `uninstall`,
+`share`, `completions`, `mcp`, `suggest`, `score`, `card`, `gallery`:
+
+| Verb | What it does |
+| --- | --- |
+| `apply [preset\|template\|url\|path]` | Install / re-apply (idempotent): deps, base, overlay, plugins, mboard, scan, re-auth notes. Opens the picker (pre-filled on a re-run) in a terminal with no argument; headless with a preset or when stdin is not a TTY. A **starter-template name** (`web-dev`, `backend`, `research`, `the-works`) applies a curated persona; a **git URL or path to a `clair.share.json`** adopts someone else's shared setup (previews + confirms first). |
+| `status` | Per-file drift summary between the repo and live `~/.claude` (the default). |
+| `status diff [item]` | Content diff for managed items. |
+| `status health` | Environment health report: deps, profile, mboard state, and a drift summary. |
+| `status scan` | Secrets + base-purity scan; exits non-zero on findings. Also the pre-commit hook and CI. |
+| `new agent\|command\|hook\|skill <name>` | Scaffold a managed item into the base layer (or overlay). |
+| `new overlay [url]` | Scaffold and wire up the private overlay. |
+| `push [paths...]` | Capture changed live files into the right layer; reverse-templatize machine values; secret-scan. No auto-commit. Requires a git checkout. |
+| `uninstall [--yes]` | Remove managed files from `~/.claude` (restoring `*.clair.bak` backups), drop the mboard runtime + saved profile. Confirms first; `--yes` to skip. Never deletes `settings.json` outright. |
+| `share [out]` | Export your selection to a portable, base-pure `clair.share.json` (default `./`). Commit it to a repo and anyone runs `clair apply <repo-url>` to reconstruct your setup — a one-command fork of your Claude Code env. |
+| `completions [zsh\|bash\|items\|templates\|mcp]` | `zsh`/`bash` print a shell completion script to stdout (you install it; we never touch your rc). `items`/`templates`/`mcp` print the manifest paths / template names / MCP catalog ids the scripts use for TAB-time dynamic completion. |
+| `mcp list` | List the curated MCP-server catalog (id, transport, description); marks servers already in `./.mcp.json`. |
+| `mcp add <name...>` | Deep-merge catalog server(s) into the project-scope `./.mcp.json` (idempotent; preserves your existing servers). Credentials stay as `${VAR}` references; prints which env vars to set. Never touches `~/.claude.json`. |
+| `suggest` | Detect the current project (languages, frameworks, infra, CI) and **auto-configure** Claude Code for it — the right agents/skills/plugins applied + the right MCP servers wired into `./.mcp.json`. `suggest preview` shows the recommendation without applying. |
+| `score` | Grade your setup 0–100 (agent coverage, core review loop, plugins/skills, coordination, commands) and suggest concrete upgrades. |
+| `card [out]` | Render a shareable **SVG card** of your setup (score, grade, per-group counts) to embed in a README or post (default `./clair-card.svg`). |
+| `gallery` | Browse community setups (ranked by score) and the one-command adopt for each. `gallery index` regenerates `GALLERY.md` from `gallery/*.share.json`. |
+
+## Repository layout
+
+```
+clair/
+  CLAUDE.md            # Claude reads this first: "to reconstruct, run ./install.sh OR follow SETUP.md"
+  SETUP.md             # ordered, verifiable reconstruction playbook
+  README.md            # this file
+  install.sh           # bash bootstrap -> python3 -m clair apply
+  local.env.example    # per-machine variables template
+  manifest.json        # declarative managed-set: path, mode, os, layer
+  home/.claude/        # source-of-truth mirror of the portable (base) setup
+  mboard/             # vendored mboard coordinator ($HOME-relative hooks)
+  clair/               # Python installer/CLI (stdlib only, python3 >= 3.9)
+  Formula/clair.rb     # Homebrew formula
+  .githooks/pre-commit # runs `clair status scan`; blocks commits with secrets/PII
+```
+
+## Contributing
+
+### Adding a feature
+
+1. Scaffold the item, which creates the file under `home/.claude/` and adds a matching
+   `manifest.json` entry:
+
+   ```sh
+   python3 -m clair new command my-command
+   ```
+
+   `new` takes a kind (`agent` | `command` | `hook` | `skill`) and a name. (`new overlay
+   [url]` scaffolds and wires up a private overlay.) Each `manifest.json` entry carries a
+   `mode` (`symlink` | `template` | `merge`), `os` (`any` | `darwin` | `linux`), and `layer`
+   (`base` for generic/shareable, `overlay` for personal/company), for example:
+
+   ```json
+   {
+     "items": [
+       { "path": "commands/my-command.md", "mode": "symlink", "os": "any", "layer": "base" }
+     ]
+   }
+   ```
+
+2. Scan and apply, then commit (base) or push to your overlay:
+
+   ```sh
+   python3 -m clair status scan
+   python3 -m clair apply
+   git add -A && git commit -m "feat: add my-command"
+   ```
+
+   The pre-commit hook re-runs `clair status scan` and blocks the commit if it finds secrets
+   or base-purity (PII/company) content — move such content to an overlay or templatize it
+   with `${VAR}`.
+
+### Running from a package (`CLAIR_ROOT`)
+
+clair also runs from a read-only, git-less install (such as the Homebrew package). A packaged
+install sets:
+
+| Variable | Meaning |
+|----------|---------|
+| `CLAIR_ROOT` | absolute path to the bundled asset tree (`manifest.json`, `home/.claude/`, `mboard/`). When set, clair reads its assets from here instead of a git checkout. |
+| `CLAIR_LOCAL_ENV` | optional explicit path to `local.env`. |
+
+When `CLAIR_ROOT` is set, clair:
+
+- reads `local.env` from `$CLAIR_LOCAL_ENV` → `~/.config/clair/local.env` (honoring
+  `$XDG_CONFIG_HOME`) → `<root>/local.env`, using the first that exists;
+- **skips runtime dependency installation** (`git`/`python3`/`jq` are declared package
+  dependencies, not installed on the fly); and
+- disables `clair push` (capturing live edits back into the repo needs a git checkout — it
+  exits non-zero with a message pointing you at a clone for the dev workflow).
+
+A plain git checkout running `python3 -m clair` is unaffected: with `CLAIR_ROOT` unset, assets
+resolve relative to the checkout and `local.env` falls back to `<repo>/local.env`. `make dist`
+builds the versioned tarball (`clair --version`) that the package definitions consume; see
+[RELEASING.md](./RELEASING.md) for cutting new versions.
+
+## License
+
+MIT. See [LICENSE](./LICENSE).

@@ -1,0 +1,43 @@
+# secrets — never commit
+.credentials.json
+**/.credentials.json
+.claude.json
+local.env
+# overlay clones
+overlay/
+.overlay/
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+# machine state (if ever mirrored by accident)
+**/projects/
+**/history.jsonl
+**/sessions/
+**/paste-cache/
+**/cache/
+*.sock
+*.pid
+# clair backups + caches
+*.clair.bak
+.clair/cache/
+# build output
+dist/
+# local-only purity denylist (real company/person/product terms — never commit)
+.clair/purity-terms.txt
+# private overlay (design docs + personal/company content — never commit)
+private/
+# session handoff docs (contain local paths / personal context — never commit)
+handoffs/
+# internal design docs (plans/specs — live in the private overlay, never commit; see docs/README.md)
+docs/superpowers/
+# macOS cruft
+.DS_Store
+**/.DS_Store
+
+# stray project-scope MCP config (clair mcp add writes this in cwd)
+.mcp.json
+
+# stray showcase card output (clair card writes this in cwd)
+clair-card.svg
