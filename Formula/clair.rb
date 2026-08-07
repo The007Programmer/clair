@@ -2,7 +2,7 @@ class Clair < Formula
   desc "Claude Code environment-as-code installer"
   homepage "https://github.com/The007Programmer/clair"
   url "https://github.com/The007Programmer/clair/archive/refs/tags/v0.7.4.tar.gz"
-  sha256 "43ffe167162a0499d335b32797603d2f8311b0107f2953be42a57cc8207f88cb"
+  sha256 "229bd38ef68dad591de97d578a382cd13217725a97921c78a1a524bd5c174e1e"
   license "MIT"
 
   depends_on "jq"
